@@ -217,7 +217,9 @@ def log_food():
     notify_institutions_for_food(food_log, restaurant)
     db.session.commit()
 
-    notifications = Notification.query.filter_by(related_entity_id=food_log.id).count()
+    notifications = Notification.query.filter_by(
+        notification_type="food_available", related_entity_id=food_log.id
+    ).count()
     return jsonify(
         {
             "message": "Food logged and institutions notified",
@@ -254,7 +256,9 @@ def create_blood_request():
     notify_donors_for_blood_request(blood_request)
     db.session.commit()
 
-    notifications = Notification.query.filter_by(related_entity_id=blood_request.id).count()
+    notifications = Notification.query.filter_by(
+        notification_type="blood_request", related_entity_id=blood_request.id
+    ).count()
     return jsonify(
         {
             "message": "Blood request created and matching donors notified",

@@ -19,9 +19,17 @@ export default function GetInvolved() {
         </FadeIn>
 
         <div className="involved-showcase">
-          <img src={IMAGES.community} alt="Community volunteers" loading="lazy" />
-          <img src={IMAGES.restaurant} alt="Restaurant partner" loading="lazy" />
-          <img src={IMAGES.orphanage} alt="Children at orphanage" loading="lazy" />
+          {[
+            [IMAGES.community, 'Volunteers coordinating community outreach', 'Volunteers'],
+            [IMAGES.restaurant, 'Partner restaurant dining hall', 'Restaurant Partners'],
+            [IMAGES.orphanage, 'Child smiling while painting at an orphanage', 'Orphanages'],
+            [IMAGES.oldAge, 'Elderly resident enjoying a quiet afternoon', 'Old Age Homes'],
+          ].map(([src, alt, caption]) => (
+            <figure key={caption}>
+              <img src={src} alt={alt} loading="lazy" />
+              <figcaption>{caption}</figcaption>
+            </figure>
+          ))}
         </div>
 
         <div className="forms-layout">

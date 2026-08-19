@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import datetime
 
 from flask_sqlalchemy import SQLAlchemy
 
