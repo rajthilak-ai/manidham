@@ -55,10 +55,18 @@ def normalize_blood_group(value):
     """Accept a blood group even when '+' arrived as a space.
 
     An unencoded '+' in a query string decodes to a space, which would otherwise
-    turn 'O+' into 'O ' and silently match no donors.
+    turn 'O+' into 'O ' and silently match no donors. Surrounding whitespace is
+    the only signal that a '+' was lost, so it is checked before stripping.
     """
-    cleaned = (value or "").strip().upper().replace(" ", "+")
-    return cleaned if cleaned in BLOOD_GROUPS else None
+    raw = (value or "").upper()
+    candidate = raw.strip()
+    if candidate in BLOOD_GROUPS:
+        return candidate
+
+    positive = f"{candidate}+"
+    if raw != candidate and positive in BLOOD_GROUPS:
+        return positive
+    return None
 
 
 def age_from_date_of_birth(dob, today=None):
@@ -189,9 +197,11 @@ def create_donor():
 def search_donors():
     city = request.args.get("city", "").strip()
     district = request.args.get("district", "").strip()
-    raw_group = request.args.get("blood_group", "").strip()
+    # Left unstripped: trailing whitespace tells normalize_blood_group that an
+    # unencoded '+' was decoded into a space.
+    raw_group = request.args.get("blood_group", "")
 
-    if not raw_group:
+    if not raw_group.strip():
         return jsonify({"error": "Blood group is required for search"}), 400
 
     blood_group = normalize_blood_group(raw_group)
@@ -228,6 +238,9 @@ def create_restaurant():
     if error:
         return jsonify({"error": error}), 400
 
+    if not is_valid_email(data["email"]):
+        return jsonify({"error": "Enter a valid email address"}), 400
+
     restaurant = Restaurant(
         name=data["name"].strip(),
         contact_person=data["contact_person"].strip(),
@@ -251,6 +264,9 @@ def create_institution():
     )
     if error:
         return jsonify({"error": error}), 400
+
+    if not is_valid_email(data["email"]):
+        return jsonify({"error": "Enter a valid email address"}), 400
 
     institution_type = data["institution_type"].strip().lower().replace(" ", "_")
     if institution_type not in {"orphanage", "old_age_home"}:
@@ -278,7 +294,12 @@ def log_food():
     if error:
         return jsonify({"error": error}), 400
 
-    restaurant = db.session.get(Restaurant, data["restaurant_id"])
+    try:
+        restaurant_id = int(data["restaurant_id"])
+    except (TypeError, ValueError):
+        return jsonify({"error": "restaurant_id must be a number"}), 400
+
+    restaurant = db.session.get(Restaurant, restaurant_id)
     if not restaurant:
         return jsonify({"error": "Restaurant not found"}), 404
 
@@ -316,17 +337,26 @@ def create_blood_request():
     if error:
         return jsonify({"error": error}), 400
 
-    if data["blood_group"] not in BLOOD_GROUPS:
-        return jsonify({"error": "Invalid blood group"}), 400
+    blood_group = normalize_blood_group(data["blood_group"])
+    if not blood_group:
+        return jsonify({"error": f"Blood group must be one of: {', '.join(BLOOD_GROUPS)}"}), 400
+
+    contact_phone = data["contact_phone"].strip()
+    if len(normalize_phone(contact_phone)) < 8:
+        return jsonify({"error": "Enter a valid contact phone number"}), 400
+
+    urgency = str(data.get("urgency", "urgent")).strip().lower()
+    if urgency not in URGENCY_LEVELS:
+        return jsonify({"error": f"Urgency must be one of: {', '.join(sorted(URGENCY_LEVELS))}"}), 400
 
     blood_request = BloodRequest(
         patient_name=data["patient_name"].strip(),
-        blood_group=data["blood_group"],
+        blood_group=blood_group,
         city=data["city"].strip(),
         district=data["district"].strip(),
-        contact_phone=data["contact_phone"].strip(),
+        contact_phone=contact_phone,
         hospital=data.get("hospital", "").strip() or None,
-        urgency=data.get("urgency", "urgent"),
+        urgency=urgency,
     )
     db.session.add(blood_request)
     db.session.flush()
@@ -343,21 +373,6 @@ def create_blood_request():
             "notifications_sent": notifications,
         }
     ), 201
-
-
-@app.route("/api/notifications", methods=["GET"])
-def list_notifications():
-    recipient_type = request.args.get("recipient_type")
-    recipient_id = request.args.get("recipient_id", type=int)
-
-    query = Notification.query
-    if recipient_type:
-        query = query.filter(Notification.recipient_type == recipient_type)
-    if recipient_id:
-        query = query.filter(Notification.recipient_id == recipient_id)
-
-    notifications = query.order_by(Notification.created_at.desc()).limit(100).all()
-    return jsonify({"count": len(notifications), "notifications": [n.to_dict() for n in notifications]})
 
 
 @app.route("/api/admin/stats", methods=["GET"])
@@ -409,6 +424,17 @@ def admin_blood_requests():
 def admin_notifications():
     notifications = Notification.query.order_by(Notification.created_at.desc()).limit(200).all()
     return jsonify([notification.to_dict() for notification in notifications])
+
+
+@app.route("/api/admin/notifications/<int:notification_id>/read", methods=["POST"])
+def mark_notification_read(notification_id):
+    notification = db.session.get(Notification, notification_id)
+    if not notification:
+        return jsonify({"error": "Notification not found"}), 404
+
+    notification.is_read = True
+    db.session.commit()
+    return jsonify({"message": "Notification marked as read", "notification": notification.to_dict()})
 
 
 def seed_sample_data():

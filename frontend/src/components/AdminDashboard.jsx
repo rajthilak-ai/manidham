@@ -25,8 +25,9 @@ export default function AdminDashboard() {
         ])
       setStats(statsData)
       setData({ donors, restaurants, institutions, foodLogs, bloodRequests, notifications })
-    } catch {
+    } catch (err) {
       setStats(null)
+      setError(`Could not load dashboard data: ${err.message}`)
     } finally {
       setLoading(false)
     }
@@ -35,6 +36,17 @@ export default function AdminDashboard() {
   useEffect(() => {
     loadAll()
   }, [])
+
+  const markRead = async (id) => {
+    try {
+      await api.markNotificationRead(id)
+      const [statsData, notifications] = await Promise.all([api.getStats(), api.getNotifications()])
+      setStats(statsData)
+      setData((prev) => ({ ...prev, notifications }))
+    } catch (err) {
+      setError(err.message)
+    }
+  }
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
@@ -69,6 +81,8 @@ export default function AdminDashboard() {
           ))}
           <button type="button" className="refresh-btn" onClick={loadAll}>Refresh</button>
         </div>
+
+        {error && <div className="form-status error">{error}</div>}
 
         {loading ? (
           <p className="muted center">Loading dashboard...</p>
