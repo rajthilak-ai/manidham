@@ -75,18 +75,49 @@ This creates a few test records. To remove them again:
 venv\Scripts\python clear_test_data.py
 ```
 
+To check the validation and privacy rules specifically, run the regression script. It
+cleans up after itself, so it is safe to re-run:
+
+```bash
+venv\Scripts\python validation_checks.py
+```
+
+## Donor Privacy
+
+Donor phone numbers, email addresses, dates of birth and exact ages are **never** returned
+by the public search endpoint, and surnames are abbreviated (`Arun K.`). Searching shows
+only that a matching donor exists; to reach them, a requester submits a blood request and
+every matching donor is notified with the requester's contact details. This keeps the donor
+list from being scraped as a contact database.
+
+Notification text can contain patient phone numbers, so it is only served from the `/api/admin/*`
+routes. **Those routes are still unauthenticated — add admin authentication before deploying
+publicly.**
+
+## Validation Rules
+
+Enforced server-side, so they hold regardless of what the client sends:
+
+- Email addresses must be well-formed; phone numbers need at least 8 digits
+- Donors must be between 18 and 65, and the submitted age must agree with the date of birth
+- Dates of birth cannot be in the future
+- Blood groups must be one of the eight valid groups
+- A donor's email or phone may only be enrolled once (`409` on duplicates)
+- Blood request urgency must be `routine`, `urgent` or `critical`
+
 ## API Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/api/donors` | Enroll a blood donor |
-| GET | `/api/donors/search` | Search donors by area and blood group |
+| GET | `/api/donors/search` | Search donors by area and blood group (no contact details) |
 | POST | `/api/restaurants` | Enroll a restaurant/hotel |
 | POST | `/api/institutions` | Enroll an orphanage or old age home |
 | POST | `/api/food-log` | Log surplus food and notify institutions |
 | POST | `/api/blood-requests` | Create urgent blood request and notify donors |
 | GET | `/api/admin/stats` | Platform statistics |
 | GET | `/api/admin/*` | Admin data views |
+| POST | `/api/admin/notifications/<id>/read` | Mark a notification as read |
 
 ## Production Build
 
@@ -105,6 +136,7 @@ manidham/
 │   ├── app.py                # Flask API and notification logic
 │   ├── models.py             # SQLAlchemy models
 │   ├── smoke_test.py         # End-to-end API check
+│   ├── validation_checks.py  # Validation and privacy regression checks
 │   ├── clear_test_data.py    # Removes smoke test records
 │   ├── requirements.txt
 │   └── instance/             # SQLite database (auto-created)

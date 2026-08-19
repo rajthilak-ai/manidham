@@ -59,24 +59,28 @@ export default function DonorSearch() {
 
         {searched && (
           <div className="results-panel">
-            <h4>{results.length} donor{results.length !== 1 ? 's' : ''} found</h4>
+            <h4>{results.length} donor{results.length !== 1 ? 's' : ''} available</h4>
             {results.length === 0 ? (
               <p className="muted">No donors match this criteria yet. Submit an urgent request below to notify registered donors.</p>
             ) : (
-              <div className="results-grid">
-                {results.map((donor) => (
-                  <article key={donor.id} className="result-card">
-                    <div className="result-header">
-                      <strong>{donor.name}</strong>
-                      <span className="badge">{donor.blood_group}</span>
-                    </div>
-                    <p>{donor.city}, {donor.district}, {donor.country}</p>
-                    <p>Phone: <a href={`tel:${donor.phone}`}>{donor.phone}</a></p>
-                    <p>Email: <a href={`mailto:${donor.email}`}>{donor.email}</a></p>
-                    {donor.is_international && <span className="tag">International Donor</span>}
-                  </article>
-                ))}
-              </div>
+              <>
+                <p className="muted privacy-note">
+                  To protect our donors, contact details stay private. Submit an urgent
+                  request below and every matching donor is notified immediately.
+                </p>
+                <div className="results-grid">
+                  {results.map((donor) => (
+                    <article key={donor.id} className="result-card">
+                      <div className="result-header">
+                        <strong>{donor.name}</strong>
+                        <span className="badge">{donor.blood_group}</span>
+                      </div>
+                      <p>{donor.city}, {donor.district}, {donor.country}</p>
+                      {donor.is_international && <span className="tag">International Donor</span>}
+                    </article>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         )}

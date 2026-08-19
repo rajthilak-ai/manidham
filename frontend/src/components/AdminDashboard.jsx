@@ -7,9 +7,11 @@ export default function AdminDashboard() {
   const [tab, setTab] = useState('overview')
   const [data, setData] = useState({})
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   const loadAll = async () => {
     setLoading(true)
+    setError(null)
     try {
       const [statsData, donors, restaurants, institutions, foodLogs, bloodRequests, notifications] =
         await Promise.all([
@@ -126,12 +128,21 @@ export default function AdminDashboard() {
             {tab === 'notifications' && (
               <div className="notification-list">
                 {(data.notifications || []).map((item) => (
-                  <article key={item.id} className="notification-item">
+                  <article key={item.id} className={`notification-item ${item.is_read ? 'is-read' : ''}`}>
                     <div>
                       <strong>{item.notification_type.replace(/_/g, ' ')}</strong>
                       <p>{item.message}</p>
                     </div>
-                    <small>{new Date(item.created_at).toLocaleString()}</small>
+                    <div className="notification-meta">
+                      <small>{new Date(item.created_at).toLocaleString()}</small>
+                      {item.is_read ? (
+                        <span className="tag">Read</span>
+                      ) : (
+                        <button type="button" className="link-btn" onClick={() => markRead(item.id)}>
+                          Mark as read
+                        </button>
+                      )}
+                    </div>
                   </article>
                 ))}
               </div>

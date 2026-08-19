@@ -720,6 +720,40 @@ th {
   margin-top: 0.35rem;
 }
 
+.notification-item.is-read {
+  opacity: 0.6;
+}
+
+.notification-meta {
+  display: grid;
+  gap: 0.4rem;
+  justify-items: end;
+  white-space: nowrap;
+}
+
+.link-btn {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--secondary);
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.link-btn:hover {
+  border-color: rgba(79, 209, 197, 0.45);
+}
+
+.privacy-note {
+  margin-top: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid rgba(79, 209, 197, 0.22);
+  background: rgba(79, 209, 197, 0.08);
+  font-size: 0.9rem;
+}
+
 .footer {
   margin-top: 2rem;
   border-top: 1px solid var(--line);

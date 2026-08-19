@@ -33,7 +33,9 @@ def main():
         "is_international": False,
     }
     status, data = call("POST", "/api/donors", donor)
-    checks.append(("create donor", status == 201, data.get("message")))
+    # 409 means a previous run's donor is still present, which is fine for the
+    # checks that follow.
+    checks.append(("create donor", status in (201, 409), data.get("message") or data.get("error")))
 
     status, data = call("GET", "/api/donors/search?city=Madurai&blood_group=B%2B")
     checks.append(("search donors", data.get("count", 0) >= 1, f"{data.get('count')} found"))

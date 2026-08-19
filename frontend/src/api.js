@@ -2,11 +2,11 @@ const API_BASE = '/api'
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
     headers: {
       'Content-Type': 'application/json',
       ...(options.headers || {}),
     },
-    ...options,
   })
 
   const data = await response.json().catch(() => ({}))
@@ -33,4 +33,5 @@ export const api = {
   getFoodLogs: () => request('/admin/food-logs'),
   getBloodRequests: () => request('/admin/blood-requests'),
   getNotifications: () => request('/admin/notifications'),
+  markNotificationRead: (id) => request(`/admin/notifications/${id}/read`, { method: 'POST' }),
 }

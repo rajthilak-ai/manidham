@@ -37,6 +37,28 @@ class Donor(db.Model):
             "created_at": self.created_at.isoformat(),
         }
 
+    def display_name(self):
+        """Abbreviate surnames so a donor is recognisable without being identifiable."""
+        parts = self.name.strip().split()
+        if len(parts) == 1:
+            return parts[0]
+        return f"{parts[0]} {parts[-1][0]}."
+
+    def to_public_dict(self):
+        """Fields safe to expose on unauthenticated endpoints.
+
+        Excludes phone, email, date of birth and exact age.
+        """
+        return {
+            "id": self.id,
+            "name": self.display_name(),
+            "blood_group": self.blood_group,
+            "city": self.city,
+            "district": self.district,
+            "country": self.country,
+            "is_international": self.is_international,
+        }
+
 
 class Restaurant(db.Model):
     __tablename__ = "restaurants"

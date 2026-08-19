@@ -1,5 +1,6 @@
 import os
-from datetime import datetime
+import re
+from datetime import date, datetime
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -19,6 +20,14 @@ CORS(app)
 db.init_app(app)
 
 BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
+URGENCY_LEVELS = {"routine", "urgent", "critical"}
+MIN_DONOR_AGE = 18
+MAX_DONOR_AGE = 65
+
+EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s.]+(\.[^@\s.]+)+$")
+# Keeps digits and a single leading +, so numbers can be compared for duplicates
+# regardless of how the user spaced or punctuated them.
+PHONE_STRIP_PATTERN = re.compile(r"[^\d+]")
 
 
 def parse_date(value):
@@ -32,6 +41,29 @@ def validate_required(data, fields):
     if missing:
         return f"Missing required fields: {', '.join(missing)}"
     return None
+
+
+def is_valid_email(value):
+    return bool(EMAIL_PATTERN.match(value.strip()))
+
+
+def normalize_phone(value):
+    return PHONE_STRIP_PATTERN.sub("", value or "")
+
+
+def normalize_blood_group(value):
+    """Accept a blood group even when '+' arrived as a space.
+
+    An unencoded '+' in a query string decodes to a space, which would otherwise
+    turn 'O+' into 'O ' and silently match no donors.
+    """
+    cleaned = (value or "").strip().upper().replace(" ", "+")
+    return cleaned if cleaned in BLOOD_GROUPS else None
+
+
+def age_from_date_of_birth(dob, today=None):
+    today = today or date.today()
+    return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
 
 
 def notify_institutions_for_food(food_log, restaurant):
@@ -95,21 +127,53 @@ def create_donor():
     if error:
         return jsonify({"error": error}), 400
 
-    if data["blood_group"] not in BLOOD_GROUPS:
-        return jsonify({"error": "Invalid blood group"}), 400
+    blood_group = normalize_blood_group(data["blood_group"])
+    if not blood_group:
+        return jsonify({"error": f"Blood group must be one of: {', '.join(BLOOD_GROUPS)}"}), 400
+
+    email = data["email"].strip()
+    if not is_valid_email(email):
+        return jsonify({"error": "Enter a valid email address"}), 400
+
+    phone = data["phone"].strip()
+    if len(normalize_phone(phone)) < 8:
+        return jsonify({"error": "Enter a valid phone number"}), 400
 
     try:
         dob = parse_date(data["date_of_birth"])
-        age = int(data["age"])
+        claimed_age = int(data["age"])
     except (TypeError, ValueError):
         return jsonify({"error": "Invalid age or date of birth"}), 400
 
+    if dob > date.today():
+        return jsonify({"error": "Date of birth cannot be in the future"}), 400
+
+    actual_age = age_from_date_of_birth(dob)
+    if abs(actual_age - claimed_age) > 1:
+        return jsonify(
+            {"error": f"Age does not match date of birth (expected about {actual_age})"}
+        ), 400
+
+    if actual_age < MIN_DONOR_AGE or actual_age > MAX_DONOR_AGE:
+        return jsonify(
+            {"error": f"Donors must be between {MIN_DONOR_AGE} and {MAX_DONOR_AGE} years old"}
+        ), 400
+
+    existing = Donor.query.filter(
+        or_(
+            func.lower(Donor.email) == email.lower(),
+            Donor.phone == phone,
+        )
+    ).first()
+    if existing:
+        return jsonify({"error": "A donor with this email or phone number is already enrolled"}), 409
+
     donor = Donor(
         name=data["name"].strip(),
-        blood_group=data["blood_group"],
-        phone=data["phone"].strip(),
-        email=data["email"].strip(),
-        age=age,
+        blood_group=blood_group,
+        phone=phone,
+        email=email,
+        age=actual_age,
         date_of_birth=dob,
         city=data["city"].strip(),
         district=data["district"].strip(),
@@ -125,10 +189,14 @@ def create_donor():
 def search_donors():
     city = request.args.get("city", "").strip()
     district = request.args.get("district", "").strip()
-    blood_group = request.args.get("blood_group", "").strip()
+    raw_group = request.args.get("blood_group", "").strip()
 
-    if not blood_group:
+    if not raw_group:
         return jsonify({"error": "Blood group is required for search"}), 400
+
+    blood_group = normalize_blood_group(raw_group)
+    if not blood_group:
+        return jsonify({"error": f"Blood group must be one of: {', '.join(BLOOD_GROUPS)}"}), 400
 
     query = Donor.query.filter(Donor.blood_group == blood_group)
 
@@ -138,7 +206,16 @@ def search_donors():
         query = query.filter(func.lower(Donor.district) == district.lower())
 
     donors = query.order_by(Donor.created_at.desc()).all()
-    return jsonify({"count": len(donors), "donors": [donor.to_dict() for donor in donors]})
+    # Contact details are deliberately withheld here: this endpoint is public, so
+    # returning them would expose a scrapeable donor contact list. Requesters
+    # submit a blood request instead, and matching donors are notified.
+    return jsonify(
+        {
+            "count": len(donors),
+            "donors": [donor.to_public_dict() for donor in donors],
+            "contact_policy": "Submit an urgent blood request to notify these donors directly.",
+        }
+    )
 
 
 @app.route("/api/restaurants", methods=["POST"])
