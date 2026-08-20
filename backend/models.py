@@ -147,6 +147,29 @@ class BloodRequest(db.Model):
         }
 
 
+class GalleryImage(db.Model):
+    __tablename__ = "gallery_images"
+
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(255), nullable=False)
+    media_type = db.Column(db.String(10), nullable=False, default="image")
+    caption = db.Column(db.String(255))
+    category = db.Column(db.String(30), nullable=False, default="general", index=True)
+    uploaded_by = db.Column(db.String(80))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "url": f"/api/uploads/{self.filename}",
+            "media_type": self.media_type,
+            "caption": self.caption,
+            "category": self.category,
+            "uploaded_by": self.uploaded_by,
+            "created_at": self.created_at.isoformat(),
+        }
+
+
 class Notification(db.Model):
     __tablename__ = "notifications"
 

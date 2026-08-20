@@ -4,7 +4,7 @@ export default function Footer() {
       <div className="container footer-inner">
         <div>
           <div className="brand footer-brand">
-            <span className="brand-mark">M</span>
+            <img className="brand-logo footer-logo" src="/manidham-logo.png" alt="Manidham logo" />
             <span>
               <strong>Manidham Trust</strong>
               <small>Education · Blood · Food</small>

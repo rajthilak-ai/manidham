@@ -7,6 +7,7 @@ const links = [
   { href: '#blood', label: 'Blood Donation' },
   { href: '#food', label: 'Food Redistribution' },
   { href: '#get-involved', label: 'Get Involved' },
+  { href: '#gallery', label: 'Gallery' },
   { href: '#admin', label: 'Dashboard' },
 ]
 
@@ -29,7 +30,7 @@ export default function Navbar() {
     >
       <div className="container navbar-inner">
         <a href="#home" className="brand">
-          <span className="brand-mark">M</span>
+          <img className="brand-logo" src="/manidham-logo.png" alt="Manidham logo" />
           <span>
             <strong>Manidham</strong>
             <small>Trust for Humanity</small>

@@ -184,6 +184,21 @@ h1, h2, h3, h4 {
   box-shadow: var(--shadow);
 }
 
+.brand-logo {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+  object-fit: contain;
+  border-radius: 50%;
+  background: #f5f8f3;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.footer-logo {
+  width: 72px;
+  height: 72px;
+}
+
 .nav-links {
   display: flex;
   align-items: center;
@@ -534,6 +549,18 @@ h1, h2, h3, h4 {
   border-color: rgba(79, 209, 197, 0.55);
 }
 
+/* Native <option> popups ignore backdrop-filter/glass styling and default to a
+   white system background, so the light --text color becomes invisible.
+   Force a dark background + light text on the options themselves. */
+select {
+  color-scheme: dark;
+}
+
+select option {
+  background: var(--bg-soft);
+  color: var(--text);
+}
+
 .full-width {
   grid-column: 1 / -1;
 }
@@ -620,6 +647,113 @@ h1, h2, h3, h4 {
 .food-log-card {
   margin-top: 1rem;
   border-color: rgba(123, 211, 137, 0.25);
+}
+
+.gallery-section {
+  padding: 6rem 0;
+}
+
+.gallery-filters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: 2.5rem;
+}
+
+.gallery-filters button {
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 0.55rem 1.1rem;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.gallery-filters button.active,
+.gallery-filters button:hover {
+  color: var(--text);
+  border-color: rgba(79, 209, 197, 0.35);
+  background: rgba(79, 209, 197, 0.12);
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1.2rem;
+  margin-bottom: 3rem;
+}
+
+.gallery-item {
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--bg-card);
+  transition: transform 0.35s ease;
+}
+
+.gallery-item:hover {
+  transform: translateY(-6px) scale(1.01);
+}
+
+.gallery-item img,
+.gallery-item video {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+  background: #000;
+}
+
+.gallery-item figcaption {
+  position: absolute;
+  inset: auto 0 0;
+  padding: 1.2rem 1rem 0.75rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  background: linear-gradient(transparent, rgba(11, 16, 32, 0.92));
+}
+
+.gallery-delete {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  border: none;
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  background: rgba(255, 77, 109, 0.85);
+  color: #fff;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.gallery-delete:hover {
+  background: var(--danger);
+  transform: translateY(-1px);
+}
+
+.gallery-admin {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.gallery-admin-toggle {
+  display: grid;
+  gap: 1.5rem;
+  justify-items: center;
+}
+
+.admin-login-form,
+.admin-upload-form {
+  width: 100%;
+}
+
+.admin-upload-form .result-header {
+  align-items: flex-start;
+  flex-wrap: wrap;
 }
 
 .admin-section {

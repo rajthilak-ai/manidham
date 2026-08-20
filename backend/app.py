@@ -1,24 +1,78 @@
 import os
+import uuid
 from datetime import datetime
+from functools import wraps
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from sqlalchemy import func, or_
+from werkzeug.utils import secure_filename
 
-from models import BloodRequest, Donor, FoodLog, Institution, Notification, Restaurant, db
+from models import BloodRequest, Donor, FoodLog, GalleryImage, Institution, Notification, Restaurant, db
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DB_PATH = os.path.join(BASE_DIR, "instance", "manidham.db")
+UPLOAD_DIR = os.path.join(BASE_DIR, "uploads", "gallery")
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{DB_PATH}"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "manidham-dev-secret")
+app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB per upload (videos are larger)
 
 CORS(app)
 db.init_app(app)
 
 BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
+GALLERY_CATEGORIES = {"general", "education", "blood", "food"}
+ALLOWED_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "gif", "webp"}
+ALLOWED_VIDEO_EXTENSIONS = {"mp4", "webm", "ogg", "mov"}
+ALLOWED_MEDIA_EXTENSIONS = ALLOWED_IMAGE_EXTENSIONS | ALLOWED_VIDEO_EXTENSIONS
+
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "manidham@admin")
+ADMIN_TOKEN_MAX_AGE = 8 * 60 * 60  # 8 hours
+
+admin_token_serializer = URLSafeTimedSerializer(app.config["SECRET_KEY"], salt="manidham-admin-token")
+
+
+def generate_admin_token(username):
+    return admin_token_serializer.dumps({"username": username})
+
+
+def verify_admin_token(token):
+    try:
+        data = admin_token_serializer.loads(token, max_age=ADMIN_TOKEN_MAX_AGE)
+    except (BadSignature, SignatureExpired):
+        return None
+    return data.get("username")
+
+
+def require_admin(handler):
+    @wraps(handler)
+    def wrapper(*args, **kwargs):
+        auth_header = request.headers.get("Authorization", "")
+        token = auth_header.split(" ", 1)[1] if auth_header.startswith("Bearer ") else None
+        username = verify_admin_token(token) if token else None
+        if not username:
+            return jsonify({"error": "Invalid or expired session"}), 401
+        request.admin_username = username
+        return handler(*args, **kwargs)
+
+    return wrapper
+
+
+def get_file_extension(filename):
+    return filename.rsplit(".", 1)[1].lower() if "." in filename else ""
+
+
+def allowed_media_file(filename):
+    return get_file_extension(filename) in ALLOWED_MEDIA_EXTENSIONS
+
+
+def media_type_for_extension(extension):
+    return "video" if extension in ALLOWED_VIDEO_EXTENSIONS else "image"
 
 
 def parse_date(value):
@@ -268,6 +322,89 @@ def create_blood_request():
     ), 201
 
 
+@app.route("/api/admin/login", methods=["POST"])
+def admin_login():
+    data = request.get_json(silent=True) or {}
+    username = str(data.get("username", "")).strip()
+    password = str(data.get("password", "")).strip()
+
+    if username != ADMIN_USERNAME or password != ADMIN_PASSWORD:
+        return jsonify({"error": "Invalid username or password"}), 401
+
+    return jsonify({"token": generate_admin_token(username), "username": username})
+
+
+@app.route("/api/admin/verify", methods=["GET"])
+@require_admin
+def admin_verify():
+    return jsonify({"username": request.admin_username})
+
+
+@app.route("/api/gallery", methods=["GET"])
+def list_gallery():
+    category = request.args.get("category", "").strip().lower()
+    query = GalleryImage.query
+    if category:
+        query = query.filter(GalleryImage.category == category)
+    images = query.order_by(GalleryImage.created_at.desc()).all()
+    return jsonify({"count": len(images), "images": [image.to_dict() for image in images]})
+
+
+@app.route("/api/gallery", methods=["POST"])
+@require_admin
+def upload_gallery_image():
+    file = request.files.get("file") or request.files.get("image")
+    if not file or file.filename == "":
+        return jsonify({"error": "No file provided"}), 400
+    if not allowed_media_file(file.filename):
+        return jsonify(
+            {"error": "Unsupported file type. Use PNG/JPG/GIF/WEBP for photos or MP4/WEBM/MOV/OGG for videos"}
+        ), 400
+
+    category = (request.form.get("category") or "general").strip().lower()
+    if category not in GALLERY_CATEGORIES:
+        category = "general"
+    caption = (request.form.get("caption") or "").strip() or None
+
+    extension = get_file_extension(file.filename)
+    stored_name = secure_filename(f"{uuid.uuid4().hex}.{extension}")
+
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
+    file.save(os.path.join(UPLOAD_DIR, stored_name))
+
+    image = GalleryImage(
+        filename=stored_name,
+        media_type=media_type_for_extension(extension),
+        caption=caption,
+        category=category,
+        uploaded_by=request.admin_username,
+    )
+    db.session.add(image)
+    db.session.commit()
+    return jsonify({"message": "Media uploaded", "image": image.to_dict()}), 201
+
+
+@app.route("/api/gallery/<int:image_id>", methods=["DELETE"])
+@require_admin
+def delete_gallery_image(image_id):
+    image = db.session.get(GalleryImage, image_id)
+    if not image:
+        return jsonify({"error": "Image not found"}), 404
+
+    file_path = os.path.join(UPLOAD_DIR, image.filename)
+    if os.path.exists(file_path):
+        os.remove(file_path)
+
+    db.session.delete(image)
+    db.session.commit()
+    return jsonify({"message": "Image deleted"})
+
+
+@app.route("/api/uploads/<path:filename>", methods=["GET"])
+def serve_upload(filename):
+    return send_from_directory(UPLOAD_DIR, filename)
+
+
 @app.route("/api/notifications", methods=["GET"])
 def list_notifications():
     recipient_type = request.args.get("recipient_type")
@@ -294,6 +431,7 @@ def admin_stats():
             "blood_requests": BloodRequest.query.count(),
             "notifications": Notification.query.count(),
             "unread_notifications": Notification.query.filter_by(is_read=False).count(),
+            "gallery_images": GalleryImage.query.count(),
         }
     )
 
@@ -402,9 +540,23 @@ def seed_sample_data():
     db.session.commit()
 
 
+def ensure_gallery_media_type_column():
+    inspector = db.inspect(db.engine)
+    if "gallery_images" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("gallery_images")}
+    if "media_type" not in columns:
+        with db.engine.begin() as connection:
+            connection.execute(
+                db.text("ALTER TABLE gallery_images ADD COLUMN media_type VARCHAR(10) DEFAULT 'image'")
+            )
+
+
 with app.app_context():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    os.makedirs(UPLOAD_DIR, exist_ok=True)
     db.create_all()
+    ensure_gallery_media_type_column()
     seed_sample_data()
 
 

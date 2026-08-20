@@ -21,6 +21,8 @@ A full-stack NGO platform for **Manidham Trust**, connecting communities through
 - Orphanage and old age home enrollment
 - Automatic area-based notifications for food and blood requests
 - Admin dashboard with platform statistics and records
+- Public photo gallery with category filters (education, blood, food, general)
+- Admin login (token-based) so only authorized staff can upload/remove gallery photos
 
 ## Quick Start
 
@@ -54,6 +56,29 @@ npm run dev
 
 Open `http://127.0.0.1:5173` in your browser. The Vite dev server proxies `/api` requests to the Flask backend.
 
+## Admin Login (Gallery Uploads)
+
+The **Gallery** section on the site lets visitors browse photos, and lets a signed-in admin upload or remove them.
+
+Default credentials (change these before deploying):
+
+- Username: `admin`
+- Password: `manidham@admin`
+
+Override them by setting environment variables before starting the backend:
+
+```bash
+# Windows (PowerShell)
+$env:ADMIN_USERNAME="youradmin"
+$env:ADMIN_PASSWORD="a-strong-password"
+$env:SECRET_KEY="a-long-random-string"
+python app.py
+```
+
+Login issues a signed, time-limited token (8 hours) stored in the browser's `localStorage`; it is sent as
+`Authorization: Bearer <token>` on upload/delete requests. Uploaded files are stored in `backend/uploads/gallery/`
+(auto-created, git-ignored) and served at `/api/uploads/<filename>`.
+
 ## Images
 
 All photography is stored locally in `frontend/public/images/` and referenced through
@@ -85,6 +110,11 @@ venv\Scripts\python clear_test_data.py
 | POST | `/api/institutions` | Enroll an orphanage or old age home |
 | POST | `/api/food-log` | Log surplus food and notify institutions |
 | POST | `/api/blood-requests` | Create urgent blood request and notify donors |
+| POST | `/api/admin/login` | Admin login, returns a bearer token |
+| GET | `/api/admin/verify` | Verify a bearer token is still valid |
+| GET | `/api/gallery` | List gallery images (optional `?category=`) |
+| POST | `/api/gallery` | Upload a gallery image (admin only) |
+| DELETE | `/api/gallery/<id>` | Remove a gallery image (admin only) |
 | GET | `/api/admin/stats` | Platform statistics |
 | GET | `/api/admin/*` | Admin data views |
 
@@ -107,11 +137,12 @@ manidham/
 │   ├── smoke_test.py         # End-to-end API check
 │   ├── clear_test_data.py    # Removes smoke test records
 │   ├── requirements.txt
-│   └── instance/             # SQLite database (auto-created)
+│   ├── instance/             # SQLite database (auto-created)
+│   └── uploads/gallery/      # Uploaded gallery photos (auto-created)
 └── frontend/
     ├── public/images/        # All site photography
     ├── src/
-    │   ├── components/       # React UI components
+    │   ├── components/       # React UI components (incl. Gallery.jsx)
     │   ├── api.js            # API client
     │   └── constants/        # Image paths and constants
     └── vite.config.js        # Dev proxy to backend
